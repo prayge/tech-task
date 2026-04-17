@@ -1,6 +1,6 @@
 # Wind Turbine Data Pipeline — Colibri
 
-Tech task to Implement, Document, Test a scalable implementation of Databricks.
+Tech task to Implement, Document, Test a scalable implementation of Databricks
 
 ## Overview
 

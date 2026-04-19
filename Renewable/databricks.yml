@@ -28,6 +28,7 @@ resources:
       environments:
         - environment_key: tests
           spec:
+            environment_version: "3"
             dependencies:
               - pytest>=8.0
               - databricks-connect==15.1.*

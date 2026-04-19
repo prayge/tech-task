@@ -9,3 +9,6 @@ Renewable/colibri.egg-info
 .vscode
 Renewable/transformations/__pycache__
 Renewable/.databricks
+data_group_duplicate.csv
+data_group_null.csv
+data_group_wind.csv

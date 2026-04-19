@@ -5,8 +5,6 @@ volume, not on the local filesystem — so the same reads run the same way
 from VS Code, from CI, or from a notebook. Upload the files once with:
 
     databricks fs cp -r test/data /Volumes/colibri/test/data
-
-See run.md for setup.
 """
 import pytest
 from databricks.connect import DatabricksSession

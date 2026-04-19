@@ -91,9 +91,16 @@ def silver_01_invalid():
 
 @dp.materialized_view(
     name="silver_02_anomaly_flagged",
-    comment="Validated readings with per-turbine, per-day anomaly flag (more than two standard deviations).",
+    comment="Anomalous readings only (>2σ from per-turbine, per-day mean), with daily mean and observation count for verification.",
 )
 def silver_02_anomaly_flagged():
     # Materialized, not streaming: the window needs the full daily partition.
-    logger.info("silver_02_anomaly_flagged: flagging anomalies per turbine per day")
-    return flag_anomalies(dp.read("silver_01_bounds_validated"))
+    logger.info("silver_02_anomaly_flagged: emitting anomalies per turbine per day")
+    w = Window.partitionBy("turbine_id", to_date("timestamp"))
+    return (
+        flag_anomalies(dp.read("silver_01_bounds_validated"))
+            .withColumn("observations", count(lit(1)).over(w))
+            .withColumn("mean_power_output", avg("power_output").over(w))
+            .filter(col("is_anomaly"))
+            .drop("is_anomaly")
+    )

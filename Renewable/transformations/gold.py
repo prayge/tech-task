@@ -3,17 +3,16 @@ import logging
 
 from pyspark import pipelines as dp
 from pyspark.sql.functions import (
-    col, lit, avg, count, to_date,
+    lit, avg, count, to_date,
 )
 from pyspark.sql.functions import (
-    min as _min, max as _max, sum as _sum,
+    min as _min, max as _max,
 )
 
 
 logger = logging.getLogger(__name__)
 
 # Shared agg spec. Imported by test_gold.py so tests and production stay in lockstep.
-# sum(is_anomaly) needs the int cast because Spark SQL does not sum booleans.
 DAILY_SUMMARY_AGGS = [
     _min("power_output").alias("min_power_output"),
     _max("power_output").alias("max_power_output"),
@@ -21,18 +20,17 @@ DAILY_SUMMARY_AGGS = [
     avg("wind_speed").alias("avg_wind_speed"),
     avg("wind_direction").alias("avg_wind_direction"),
     count(lit(1)).alias("reading_count"),
-    _sum(col("is_anomaly").cast("int")).alias("anomaly_count"),
 ]
 
 
 @dp.materialized_view(
     name="gold_turbine_daily_summary",
-    comment="Per-turbine, per-day min/max/avg power output, wind stats, reading count, anomaly count.",
+    comment="Per-turbine, per-day min/max/avg power output, wind stats, reading count.",
 )
 def gold_turbine_daily_summary():
-    logger.info("gold_turbine_daily_summary: aggregating silver_02_anomaly_flagged")
+    logger.info("gold_turbine_daily_summary: aggregating silver_01_bounds_validated")
     return (
-        dp.read("silver_02_anomaly_flagged")
+        dp.read("silver_01_bounds_validated")
             .withColumn("date", to_date("timestamp"))
             .groupBy("turbine_id", "date")
             .agg(*DAILY_SUMMARY_AGGS)

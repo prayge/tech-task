@@ -6,3 +6,4 @@ Renewable/resources
 Renewable/colibri.egg-info
 .pytest_cache
 Renewable/tests/__pycache__
+Renewable/.databricks/bundle

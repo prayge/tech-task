@@ -78,28 +78,33 @@ Analytics-ready daily summaries. Materialized views refresh on each pipeline run
 
 ## Testing
 
-Configured against Databricks Connect — transformations run on a remote cluster
-from a local `pytest` runner. Auth via `~/.databrickscfg` or `DATABRICKS_*` env
-vars in CI. Session-scoped `spark` fixture in `tests/conftest.py`.
+Configured against Databricks Connect — transformations run on Databricks
+compute (serverless by default) from a `pytest` runner in VS Code. Auth via
+`DATABRICKS_*` env vars sourced from `.env`. Session-scoped `spark` fixture
+in `tests/conftest.py`.
 
-Each test either builds an in-memory DataFrame or loads one of the fixture CSVs
-under `test/data/`, pushes it through the transformation, and asserts on the
-output.
+Fixture CSVs live in the Unity Catalog volume `/Volumes/colibri/test/data/`
+so the same test code works from VS Code, from CI, or from a notebook
+without touching a local filesystem. The repo directory `test/data/` is the
+authoritative source for the files; upload it to the volume with a single
+CLI call — see `run.md`.
 
-**Coverage:**
+**Coverage (pure helpers, via Databricks Connect):**
 - `tests/test_bronze.py` — `_with_typed_columns` routes valid rows to non-null
   typed columns and passes bad-cast rows through as null.
 - `tests/test_silver.py` — `dedupe_readings` collapses identical keys, the
   bounds predicates drop out-of-range readings and keep boundary values, and
   `flag_anomalies` marks outliers per turbine per day while respecting
   per-turbine windows and single-row partitions.
-- `tests/test_gold.py` — daily aggregation math (min, max, avg, counts, anomaly
-  count) and the narrow anomaly projection.
+- `tests/test_gold.py` — daily aggregation math (min, max, avg, counts,
+  anomaly count) and the narrow anomaly projection.
 
-**Assumptions:** `pyspark.sql` transformation helpers live inside their own
-pipeline file (for example `dedupe_readings` and `flag_anomalies` in
-`silver.py`). Tests import them directly. Pipeline files as a whole execute
-inside the Databricks runtime, but the pure helpers within them have no
-Databricks-runtime dependency and are safe to import from pytest.
+**What pytest does not cover (on purpose):** the `@dp.table`,
+`@dp.materialized_view`, and `@dp.expect_all_or_drop` decorators only resolve
+inside a running Lakeflow pipeline. Each transformation file therefore
+keeps its logic in a plain helper function that the decorated wrapper calls;
+tests target the helpers. End-to-end coverage of the decorators, table
+linkage, and expectation drops comes from running the pipeline itself via
+`databricks bundle run` and inspecting the resulting Delta tables.
 
-See `run.md` for setup, deploy, and test commands.
+See `run.md` for VS Code setup, fixture upload, deploy, and test commands.

@@ -4,13 +4,38 @@ bundle:
 include:
   - resources/*.yml
 
-# Workspace host is taken from the DATABRICKS_HOST environment variable
-# (loaded from .env — see run.md). Not checked into the bundle.
+resources:
+  jobs:
+    TechTask-colibri-daily:
+      name: TechTask-colibri-daily
+      schedule:
+        quartz_cron_expression: "0 15 10 ? * *"   # 10:15 UTC daily
+        timezone_id: UTC
+        pause_status: PAUSED
+      tasks:
+        - task_key: run_colibri_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.colibri_pipeline.id}
+            full_refresh: false
+
+  pipelines:
+    colibri_pipeline:
+      name: colibri_pipeline_${bundle.target}
+      catalog: colibri
+      schema: ${bundle.target}
+      serverless: true
+      libraries:
+        - glob:
+            include: ../transformations/**
 
 targets:
   dev:
     mode: development
     default: true
+    workspace:
+      host: https://dbc-552b3fd9-703f.cloud.databricks.com
 
   prod:
     mode: production
+    workspace:
+      host: https://dbc-552b3fd9-703f.cloud.databricks.com

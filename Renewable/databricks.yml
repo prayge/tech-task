@@ -18,6 +18,20 @@ resources:
             pipeline_id: ${resources.pipelines.colibri_pipeline.id}
             full_refresh: false
 
+    colibri-tests:
+      name: colibri-tests-${bundle.target}
+      tasks:
+        - task_key: run_tests
+          notebook_task:
+            notebook_path: ./tests/run_tests.py
+          environment_key: tests
+      environments:
+        - environment_key: tests
+          spec:
+            dependencies:
+              - pytest>=8.0
+              - databricks-connect==15.1.*
+
   pipelines:
     colibri_pipeline:
       name: colibri_pipeline_${bundle.target}

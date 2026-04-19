@@ -9,8 +9,8 @@ from pyspark.sql.functions import (
 
 logger = logging.getLogger(__name__)
 
-RAW_PATH = "/Volumes/colibri/bronze/01-raw/"
-SCHEMA_LOCATION = "/Volumes/colibri/bronze/01-raw/_schemas/bronze_01/_schemas/"
+RAW_PATH = "/Volumes/colibri/data/01-raw/"
+SCHEMA_LOCATION = "/Volumes/colibri/data/01-raw/_schemas/bronze_01/_schemas/"
 
 
 # ---------- helper ----------

@@ -1,0 +1,23 @@
+[project]
+name = "colibri"
+version = "0.1.0"
+requires-python = ">=3.10"
+
+# Only `transformations/` is a Python package. `resources/` is YAML bundle config
+# and `tests/` is test code — setuptools would otherwise error on flat-layout
+# ambiguity.
+[tool.setuptools]
+packages = ["transformations"]
+
+[project.optional-dependencies]
+# databricks-connect must match the target cluster's DBR. Bump this line when
+# the cluster is upgraded.
+dev = [
+    "pytest>=8.0",
+    "databricks-connect==15.4.*",
+    "pyspark>=3.5",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

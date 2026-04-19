@@ -1,0 +1,16 @@
+bundle:
+  name: colibri
+
+include:
+  - resources/*.yml
+
+# Workspace host is taken from the DATABRICKS_HOST environment variable
+# (loaded from .env — see run.md). Not checked into the bundle.
+
+targets:
+  dev:
+    mode: development
+    default: true
+
+  prod:
+    mode: production

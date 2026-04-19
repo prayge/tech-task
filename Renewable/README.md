@@ -31,55 +31,75 @@ after the first run.
 
 ## Silver
 
-Business rules and anomaly flagging on cleansed readings.
+Bounds validation, dedup, and anomaly flagging on cleansed readings.
 
+**`silver_01_bounds_validated`:** Readings that pass the physical bounds
+predicates `wind_direction BETWEEN 0 AND 360`, `wind_speed >= 0`,
+`power_output >= 0`, then deduped on `(timestamp, turbine_id)`. Bounds are
+enforced with `@dp.expect_all_or_drop`; dedup handles upstream retry resends.
 
-**`silver_01_validated`:** Rows where every column cast cleanly to its target type.
-Feeds silver.
+**`silver_01_bounds_invalid`:** Readings that violated one or more bounds, with
+a `validation_errors_summary` column naming which ones. Split into its own
+table so a Data Engineer can inspect the exceptions in one place rather than
+conditionally filtering downstream.
 
-**`silver_01_invalid`:** Rows where at least one cast failed, with a
-`validation_errors_summary` column naming which columns failed. Split into its own
-table so exceptions are inspectable in one place, cleaner than conditional filtering
-downstream. All rows in here have a column for the edge case in which they are invalid for, determining easy solution and scanning
-- **Anomaly flagging:** readings more than 2 standard deviations from the turbine's own mean are
-  flagged via an `is_anomaly` column. Flagged, not dropped — anomalies are signal.
+**`silver_02_anomaly_flagged`:** The validated readings with two extra columns
+added by a per-turbine, per-day window: `deviation_sigmas` (how many standard
+deviations the row's power output sits from its turbine's own daily mean) and
+`is_anomaly` (true when the absolute deviation exceeds two standard
+deviations). Flagged, not dropped — anomalies are signal. Materialized view,
+because the window needs the full daily partition.
 
-
-**`silver_02_transformed`:** Rows where every column cast cleanly to its target type.
-Feeds silver.
-  - **Dedup** on `(timestamp, turbine_id)` — upstream occasionally double-sends on retry.
-  - **Bounds checks** via `@dp.expect_or_drop`: `wind_direction BETWEEN 0 AND 360`,
-    `wind_speed BETWEEN 0 AND 150`, `power_output >= 0`. Readings outside physical
-    envelopes are sensor malfunctions, not data.
-
-
-**Assumptions:** Anomaly detection is per-turbine (each unit has its own baseline)
-over single day
+**Assumptions:**
+- The anomaly baseline is per turbine per day. Each unit has its own profile,
+  and a single day is the window the brief calls out.
+- A single-reading partition has no standard deviation to compare against, so
+  that reading is treated as not anomalous rather than being flagged on
+  missing information.
+- Duplicate rows on the same `(timestamp, turbine_id)` are identical payloads
+  from the retry path, so an arbitrary pick during dedup is safe.
 
 ## Gold
 
 Analytics-ready daily summaries. Materialized views refresh on each pipeline run.
 
-- **`gold_turbine_daily_summary`:** per-turbine, per-day min/max/avg power output,
-  wind stats, `reading_count` (sensor downtime proxy), and `anomaly_count`.
+- **`gold_turbine_daily_summary`:** per-turbine, per-day min/max/avg power
+  output, wind stats, `reading_count` (sensor downtime proxy), and
+  `anomaly_count`. Reads from `silver_02_anomaly_flagged`.
 - **`gold_turbine_anomalies`:** narrow table of flagged readings with deviation
   magnitude, for on-call investigation.
 
-**Assumptions:** Daily aggregation satisfies the "24 hours" requirement from the
-brief; moving to hourly is a schedule change, not a code change.
+**Assumptions:**
+- A daily aggregation satisfies the "over a given time period, for example 24
+  hours" requirement from the brief. Moving to hourly would be a schedule
+  change, not a code change.
+- The `reading_count` per turbine per day is a usable proxy for sensor
+  downtime. The scenario explicitly notes that sensors can miss entries.
 
 ## Testing
 
-Configured against Databricks Connect — transformations run on a remote cluster fromhttps://github.com/prayge/tech-task.githttps://github.com/prayge/tech-task.git
-a local `pytest` runner. Auth via `~/.databrickscfg` or `DATABRICKS_*` env vars in CI.
-Session-scoped `spark` fixture in `tests/conftest.py`.
+Configured against Databricks Connect — transformations run on a remote cluster
+from a local `pytest` runner. Auth via `~/.databrickscfg` or `DATABRICKS_*` env
+vars in CI. Session-scoped `spark` fixture in `tests/conftest.py`.
 
-Run with `pytest -v`. Each test builds an in-memory DataFrame, pushes it through the
-transformation, asserts on the output.
+Each test either builds an in-memory DataFrame or loads one of the fixture CSVs
+under `test/data/`, pushes it through the transformation, and asserts on the
+output.
 
-**Intended coverage (scaffolded):** bronze cast routing, silver dedup, silver bounds,
-silver anomaly detection, gold aggregation correctness.
+**Coverage:**
+- `tests/test_bronze.py` — `_with_typed_columns` routes valid rows to non-null
+  typed columns and passes bad-cast rows through as null.
+- `tests/test_silver.py` — `dedupe_readings` collapses identical keys, the
+  bounds predicates drop out-of-range readings and keep boundary values, and
+  `flag_anomalies` marks outliers per turbine per day while respecting
+  per-turbine windows and single-row partitions.
+- `tests/test_gold.py` — daily aggregation math (min, max, avg, counts, anomaly
+  count) and the narrow anomaly projection.
 
-**Assumptions:** Transformation helpers would move to `transformations/_helpers.py` so
-they can be imported from both pipeline files and tests — pipeline files execute inside
-the Databricks runtime and aren't cleanly importable by pytest.
+**Assumptions:** `pyspark.sql` transformation helpers live inside their own
+pipeline file (for example `dedupe_readings` and `flag_anomalies` in
+`silver.py`). Tests import them directly. Pipeline files as a whole execute
+inside the Databricks runtime, but the pure helpers within them have no
+Databricks-runtime dependency and are safe to import from pytest.
+
+See `run.md` for setup, deploy, and test commands.

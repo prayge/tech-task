@@ -1,3 +1,4 @@
+import logging
 
 from pyspark import pipelines as dp
 from pyspark.sql.functions import (
@@ -5,6 +6,8 @@ from pyspark.sql.functions import (
     current_timestamp, input_file_name,
 )
 
+
+logger = logging.getLogger(__name__)
 
 RAW_PATH = "/Volumes/colibri/bronze/01-raw/"
 SCHEMA_LOCATION = "/Volumes/colibri/bronze/01-raw/_schemas/bronze_01/_schemas/"
@@ -29,6 +32,7 @@ def _with_typed_columns(df):
     comment="Raw turbine CSVs ingested as strings. No validation. Immutable landing."
 )
 def bronze_01_raw():
+    logger.info("bronze_01_raw: Auto Loader reading %s", RAW_PATH)
     return (
         spark.readStream
             .format("cloudFiles")

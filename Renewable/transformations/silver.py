@@ -1,8 +1,94 @@
+import logging
+
 from pyspark import pipelines as dp
-from pyspark.sql.functions import col
+from pyspark.sql.functions import (
+    col, when, lit, array, array_compact, concat_ws,
+    avg, stddev, coalesce, to_date,
+)
+from pyspark.sql.functions import abs as _abs
+from pyspark.sql.window import Window
 
-@dp.table
-def silver_01():
 
-    df = spark.readStream.table('bronze_02_cleansed')
-    return df
+logger = logging.getLogger(__name__)
+
+# Physical bounds for a valid sensor reading. Values outside these envelopes are
+# sensor malfunctions, not data. Kept as a dict so the silver expectation and
+# the invalid-table reason logic share the same predicates.
+BOUNDS = {
+    "valid_wind_direction": "wind_direction BETWEEN 0 AND 360",
+    "valid_wind_speed":     "wind_speed >= 0",
+    "valid_power_output":   "power_output >= 0",
+}
+
+
+def dedupe_readings(df):
+    # Upstream sometimes retry-resends the same reading. Dedup key is
+    # (timestamp, turbine_id). Duplicate rows are identical so arbitrary pick is safe.
+    return df.dropDuplicates(["timestamp", "turbine_id"])
+
+
+def flag_anomalies(df):
+    # Anomaly definition: a reading whose power output is more than two standard
+    # deviations away from that turbine's own mean for the same day. Window is
+    # per turbine, per day. Single-row partitions produce a null standard
+    # deviation and are treated as not anomalous.
+    w = Window.partitionBy("turbine_id", to_date("timestamp"))
+    return (
+        df
+            .withColumn("_mean",  avg("power_output").over(w))
+            .withColumn("_sigma", stddev("power_output").over(w))
+            .withColumn(
+                "deviation_sigmas",
+                (col("power_output") - col("_mean")) / col("_sigma"),
+            )
+            .withColumn(
+                "is_anomaly",
+                coalesce(_abs(col("deviation_sigmas")) > lit(2.0), lit(False)),
+            )
+            .drop("_mean", "_sigma")
+    )
+
+
+@dp.table(
+    name="silver_01_bounds_validated",
+    comment="Bounds-checked, deduped readings. Feeds anomaly flagging and gold.",
+)
+@dp.expect_all_or_drop(BOUNDS)
+def silver_01_bounds_validated():
+    logger.info("silver_01_bounds_validated: bounds + dedup on bronze_02_cleansed")
+    return dedupe_readings(dp.read_stream("bronze_02_cleansed"))
+
+
+@dp.table(
+    name="silver_01_bounds_invalid",
+    comment="Readings that violated physical bounds, with reason column for review.",
+)
+def silver_01_bounds_invalid():
+    logger.info("silver_01_bounds_invalid: capturing out-of-bounds readings")
+    return (
+        dp.read_stream("bronze_02_cleansed")
+            .withColumn(
+                "validation_errors",
+                array_compact(array(
+                    when(~col("wind_direction").between(0, 360), lit("wind_direction")),
+                    when(col("wind_speed")   < 0, lit("wind_speed")),
+                    when(col("power_output") < 0, lit("power_output")),
+                )),
+            )
+            .filter("size(validation_errors) > 0")
+            .withColumn(
+                "validation_errors_summary",
+                concat_ws(",", col("validation_errors")),
+            )
+            .drop("validation_errors")
+    )
+
+
+@dp.materialized_view(
+    name="silver_02_anomaly_flagged",
+    comment="Validated readings with per-turbine, per-day anomaly flag (more than two standard deviations).",
+)
+def silver_02_anomaly_flagged():
+    # Materialized, not streaming: the window needs the full daily partition.
+    logger.info("silver_02_anomaly_flagged: flagging anomalies per turbine per day")
+    return flag_anomalies(dp.read("silver_01_bounds_validated"))

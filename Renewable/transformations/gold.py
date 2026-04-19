@@ -38,15 +38,3 @@ def gold_turbine_daily_summary():
             .agg(*DAILY_SUMMARY_AGGS)
     )
 
-
-@dp.materialized_view(
-    name="gold_turbine_anomalies",
-    comment="Narrow table of anomalous readings for on-call investigation.",
-)
-def gold_turbine_anomalies():
-    logger.info("gold_turbine_anomalies: projecting flagged rows")
-    return (
-        dp.read("silver_02_anomaly_flagged")
-            .filter(col("is_anomaly"))
-            .select("turbine_id", "timestamp", "power_output", "deviation_sigmas")
-    )

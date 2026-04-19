@@ -5,5 +5,7 @@ Renewable/resources
 .claude
 Renewable/colibri.egg-info
 .pytest_cache
-Renewable/tests/__pycache__
-Renewable/.databricks/bundle
+*/*/__pycache__
+.vscode
+Renewable/transformations/__pycache__
+Renewable/.databricks

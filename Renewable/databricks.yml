@@ -6,8 +6,8 @@ include:
 
 resources:
   jobs:
-    TechTask-colibri-daily:
-      name: TechTask-colibri-daily
+    job_colibri_daily:
+      name: job_colibri_daily
       schedule:
         quartz_cron_expression: "0 15 10 ? * *"   # 10:15 UTC daily
         timezone_id: UTC
@@ -18,24 +18,20 @@ resources:
             pipeline_id: ${resources.pipelines.colibri_pipeline.id}
             full_refresh: false
 
-    colibri-tests:
-      name: colibri-tests-${bundle.target}
+    job_colibiri_test_suite:
+      name: job_colibiri_test_suite_${bundle.target}
+      max_concurrent_runs: 1
       tasks:
         - task_key: run_tests
-          notebook_task:
-            notebook_path: ./tests/run_tests.py
-          environment_key: tests
-      environments:
-        - environment_key: tests
-          spec:
-            environment_version: "3"
-            dependencies:
-              - pytest>=8.0
-              - databricks-connect==15.1.*
+          spark_python_task:
+            python_file: tests/run_tests.py
+          libraries:
+            - pypi:
+                package: pytest
 
   pipelines:
-    colibri_pipeline:
-      name: colibri_pipeline_${bundle.target}
+    pipeline_colibri_pipeline:
+      name: pipeline_colibri_pipeline_${bundle.target}
       catalog: colibri
       schema: ${bundle.target}
       serverless: true

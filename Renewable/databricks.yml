@@ -4,6 +4,12 @@ bundle:
 include:
   - resources/*.yml
 
+artifacts:
+  colibri_wheel:
+    type: whl
+    path: .
+    build: python -m build --wheel
+
 resources:
   jobs:
     job_colibri_daily:
@@ -15,19 +21,27 @@ resources:
       tasks:
         - task_key: run_colibri_pipeline
           pipeline_task:
-            pipeline_id: ${resources.pipelines.colibri_pipeline.id}
+            pipeline_id: ${resources.pipelines.pipeline_colibri_pipeline.id}
             full_refresh: false
 
-    job_colibiri_test_suite:
-      name: job_colibiri_test_suite_${bundle.target}
+    job_colibri_test_suite:
+      name: job_colibri_test_suite_${bundle.target}
       max_concurrent_runs: 1
+      queue:
+        enabled: true
       tasks:
         - task_key: run_tests
           spark_python_task:
             python_file: tests/run_tests.py
-          libraries:
-            - pypi:
-                package: pytest
+            source: WORKSPACE
+          environment_key: test_env
+      environments:
+        - environment_key: test_env
+          spec:
+            environment_version: "3"
+            dependencies:
+              - pytest>=8.0
+              - dist/*.whl
 
   pipelines:
     pipeline_colibri_pipeline:

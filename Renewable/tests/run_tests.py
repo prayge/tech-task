@@ -8,14 +8,22 @@ Usage:
 
 Can be scheduled as a Databricks job task. Requires:
 - Databricks Connect configured (or runs on cluster)
-- Unity Catalog volume /Volumes/colibri/test/data with test fixtures
-- transformations package accessible
+- transformations package importable (bundle deploy syncs source to workspace)
 """
+import os
 import sys
 import inspect
 import logging
 import subprocess
 from pathlib import Path
+
+
+# Workspace filesystem is object-storage backed and rejects the seek +
+# atomic-rename sequence CPython uses to write .pyc caches (Errno 95 Operation
+# not supported). Must be set before any pytest import. Mirrors the official
+# Databricks pytest runner pattern.
+sys.dont_write_bytecode = True
+os.environ["PYTHONDONTWRITEBYTECODE"] = "1"
 
 
 logging.basicConfig(

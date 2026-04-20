@@ -16,7 +16,7 @@ def spark():
         return DatabricksSession.builder.getOrCreate()
     except ImportError:
         from pyspark.sql import SparkSession
-        return SparkSession.builder.getOrCreate()
+        return SparkSession.builder.appName("colibri-tests").getOrCreate()
 
 
 @pytest.fixture

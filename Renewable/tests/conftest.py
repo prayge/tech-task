@@ -3,6 +3,14 @@ when running locally, or reuses the job's SparkSession when running inside
 a Databricks task. Exposes a load_csv fixture that reads CSVs from the
 Unity Catalog volume /Volumes/colibri/test/data/."""
 import os
+import sys
+from pathlib import Path
+
+# Make `transformations` importable when pytest is launched from a parent
+# directory (e.g. VS Code's workspace root points at tech-task/, not
+# Renewable/). Prepending Renewable/ here runs before test collection.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 import pytest
 
 

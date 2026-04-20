@@ -18,24 +18,6 @@ resources:
             pipeline_id: ${resources.pipelines.pipeline_colibri_pipeline.id}
             full_refresh: false
 
-    job_colibri_test_suite:
-      name: job_colibri_test_suite_${bundle.target}
-      max_concurrent_runs: 1
-      queue:
-        enabled: true
-      tasks:
-        - task_key: run_tests
-          spark_python_task:
-            python_file: tests/run_tests.py
-            source: WORKSPACE
-          environment_key: test_env
-      environments:
-        - environment_key: test_env
-          spec:
-            environment_version: "3"
-            dependencies:
-              - pytest>=8.0
-
   pipelines:
     pipeline_colibri_pipeline:
       name: pipeline_colibri_pipeline_${bundle.target}

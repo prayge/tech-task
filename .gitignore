@@ -6,7 +6,6 @@ Renewable/resources
 Renewable/colibri.egg-info
 .pytest_cache
 */*/__pycache__
-.vscode
 Renewable/transformations/__pycache__
 Renewable/.databricks
 data_group_duplicate.csv

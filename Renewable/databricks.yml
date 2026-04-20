@@ -4,12 +4,6 @@ bundle:
 include:
   - resources/*.yml
 
-artifacts:
-  colibri_wheel:
-    type: whl
-    path: .
-    build: python -m build --wheel
-
 resources:
   jobs:
     job_colibri_daily:
@@ -41,7 +35,6 @@ resources:
             environment_version: "3"
             dependencies:
               - pytest>=8.0
-              - dist/*.whl
 
   pipelines:
     pipeline_colibri_pipeline:

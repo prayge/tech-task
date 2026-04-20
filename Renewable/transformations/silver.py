@@ -2,51 +2,14 @@ import logging
 
 from pyspark import pipelines as dp
 from pyspark.sql.functions import (
-    col, when, lit, array, array_compact, concat_ws,
-    avg, stddev, coalesce, count, to_date,
+    col, when, lit, array, array_compact, concat_ws, count,
 )
-from pyspark.sql.functions import abs as _abs
 from pyspark.sql.window import Window
+
+from transformations._helpers import BOUNDS, dedupe_readings, flag_anomalies
 
 
 logger = logging.getLogger(__name__)
-
-# Physical bounds for a valid sensor reading. Values outside these envelopes are
-# sensor malfunctions, not data. Kept as a dict so the silver expectation and
-# the invalid-table reason logic share the same predicates.
-BOUNDS = {
-    "valid_wind_direction": "wind_direction BETWEEN 0 AND 360",
-    "valid_wind_speed":     "wind_speed >= 0",
-    "valid_power_output":   "power_output >= 0",
-}
-
-
-def dedupe_readings(df):
-    # Upstream sometimes retry-resends the same reading. Dedup key is
-    # (timestamp, turbine_id). Duplicate rows are identical so arbitrary pick is safe.
-    return df.dropDuplicates(["timestamp", "turbine_id"])
-
-
-def flag_anomalies(df):
-    # Anomaly definition: a reading whose power output is more than two standard
-    # deviations away from that turbine's own mean for the same day. Window is
-    # per turbine, per day. Single-row partitions produce a null standard
-    # deviation and are treated as not anomalous.
-    w = Window.partitionBy("turbine_id", to_date("timestamp"))
-    return (
-        df
-            .withColumn("_mean",  avg("power_output").over(w))
-            .withColumn("_sigma", stddev("power_output").over(w))
-            .withColumn(
-                "deviation_sigmas",
-                (col("power_output") - col("_mean")) / col("_sigma"),
-            )
-            .withColumn(
-                "is_anomaly",
-                coalesce(_abs(col("deviation_sigmas")) > lit(2.0), lit(False)),
-            )
-            .drop("_mean", "_sigma")
-    )
 
 
 @dp.materialized_view(

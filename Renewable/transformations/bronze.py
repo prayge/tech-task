@@ -6,6 +6,8 @@ from pyspark.sql.functions import (
     current_timestamp, input_file_name,
 )
 
+from transformations._helpers import with_typed_columns
+
 
 logger = logging.getLogger(__name__)
 
@@ -13,18 +15,6 @@ RAW_PATH = "/Volumes/colibri/data/01-raw/"
 SCHEMA_LOCATION = "/Volumes/colibri/data/01-raw/_schemas/bronze_01/_schemas/"
 
 
-# ---------- helper ----------
-
-def _with_typed_columns(df):
-    """Add *_typed columns alongside the original strings. Failed casts become NULL."""
-    return (
-        df
-            .withColumn("timestamp_typed", col("timestamp").cast("timestamp"))
-            .withColumn("turbine_id_typed", col("turbine_id").cast("int"))
-            .withColumn("wind_speed_typed", col("wind_speed").cast("double"))
-            .withColumn("wind_direction_typed", col("wind_direction").cast("int"))
-            .withColumn("power_output_typed", col("power_output").cast("double"))
-    )
 # ---------- Stage 1: raw ingestion, everything as strings ----------
 
 @dp.table(
@@ -60,7 +50,7 @@ def bronze_01_raw():
     "valid_power_output": "power_output IS NOT NULL",
 })
 def bronze_02_cleansed():
-    return _with_typed_columns(dp.read_stream("bronze_01_raw")).select(
+    return with_typed_columns(dp.read_stream("bronze_01_raw")).select(
         col("timestamp_typed").alias("timestamp"),
         col("turbine_id_typed").alias("turbine_id"),
         col("wind_speed_typed").alias("wind_speed"),
@@ -76,7 +66,7 @@ def bronze_02_cleansed():
     comment="Rows where at least one column failed type casting, with reasons."
 )
 def bronze_02_invalid():
-    typed = _with_typed_columns(dp.read_stream("bronze_01_raw"))
+    typed = with_typed_columns(dp.read_stream("bronze_01_raw"))
 
     return (
         typed

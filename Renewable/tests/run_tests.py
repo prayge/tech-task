@@ -101,7 +101,17 @@ def run_tests():
     log.info(f"running tests from: {tests_dir}")
 
     return pytest.main(
-        [str(tests_dir), "-v", "-s", "--tb=short"],
+        [
+            str(tests_dir),
+            "-v", "-s", "--tb=short",
+            # Workspace FS (object-store backed) rejects __pycache__ dir
+            # creation with Errno 95. Pytest's assertion rewriter bypasses
+            # sys.dont_write_bytecode, so disable it explicitly and steer
+            # the cache dir to /tmp which is a real local FS.
+            "--assert=plain",
+            "-p", "no:cacheprovider",
+            "-o", "cache_dir=/tmp/.pytest_cache",
+        ],
         plugins=[StageReporter()],
     )
 
